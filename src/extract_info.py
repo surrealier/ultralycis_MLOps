@@ -6,6 +6,9 @@ import seaborn as sns
 import numpy as np
 from collections import defaultdict
 import matplotlib.patches as patches
+import networkx as nx
+import pygraphviz
+import pydot
 
 def load_yaml(yaml_file_path):
     """Load and parse YAML file."""
@@ -145,35 +148,67 @@ def plot_bbox_ratio_distribution(bbox_ratios, output_file):
     plt.savefig(output_file)
     plt.close()
 
-def visualize_folder_structure(base_folder, output_image_path):
-    """Visualize the folder structure and file counts."""
-    folder_dict = defaultdict(lambda: defaultdict(int))
+def count_files_and_subfiles(folder_path):
+    """폴더 및 하위 폴더에 있는 모든 파일 개수를 합산."""
+    total_files = 0
+    for root, _, files in os.walk(folder_path):
+        total_files += len(files)
+    return total_files
 
-    for root, dirs, files in os.walk(base_folder):
-        relative_path = os.path.relpath(root, base_folder)
-        parts = relative_path.split(os.sep)
-        if len(parts) > 1:
-            parent_folder = os.sep.join(parts[:-1])
-            folder_dict[parent_folder][parts[-1]] += len(files)
+def build_folder_graph(base_path, max_display=2, depth=0):
+    """폴더 구조 그래프 생성"""
+    G = nx.DiGraph()
+    
+    def add_nodes_edges(current_path, parent_node, depth):
+        subfolders = sorted([
+            f for f in os.listdir(current_path) if os.path.isdir(os.path.join(current_path, f))
+        ])
+        total_files = count_files_and_subfiles(current_path)
+
+        # 노드 추가
+        folder_name = os.path.basename(current_path)
+        label = f"{folder_name}\n({total_files} files)"
+        G.add_node(current_path, label=label)
+        if parent_node:
+            G.add_edge(parent_node, current_path)
+
+        # 하위 폴더 처리
+        if len(subfolders) > max_display and depth > 0:
+            import pdb; pdb.set_trace()
+            # 최하위 폴더인지 확인
+            if not os.listdir(current_path):
+                for subfolder in subfolders[:max_display]:
+                    subfolder_path = os.path.join(current_path, subfolder)
+                    add_nodes_edges(subfolder_path, current_path, depth)
+
+                # 생략 표시
+                ellipsis_node = f"{current_path}_ellipsis"
+                G.add_node(ellipsis_node, label="...")
+                G.add_edge(current_path, ellipsis_node)
         else:
-            folder_dict[relative_path]['_files'] += len(files)
+            for subfolder in subfolders:
+                print(f"subfolder: {subfolder}, depth: {depth}")
+                subfolder_path = os.path.join(current_path, subfolder)
+                add_nodes_edges(subfolder_path, current_path, depth + 1)
 
-    fig, ax = plt.subplots(figsize=(10, 8))
-    y_pos = 0
-    for parent, subfolders in folder_dict.items():
-        subfolder_names = list(subfolders.keys())
-        if len(subfolder_names) > 2:
-            subfolder_names = subfolder_names[:2] + [f"... {len(subfolder_names) - 2} more"]
-        for subfolder in subfolder_names:
-            ax.text(0, y_pos, f"{parent}/{subfolder}", fontsize=12)
-            if subfolder != '_files':
-                ax.text(1, y_pos, f"{subfolders[subfolder]} files", fontsize=12)
-            y_pos -= 1
+    
+    # change \\ to / for windows
+    base_path = base_path.replace("\\", "/")
+    add_nodes_edges(base_path, None, depth)
+    return G
 
-    ax.set_xlim(0, 2)
-    ax.set_ylim(y_pos, 1)
-    ax.axis('off')
-    plt.savefig(output_image_path, bbox_inches='tight')
+def plot_folder_graph(G, output_path):
+    """폴더 구조 그래프 시각화 및 저장장"""
+    pos = nx.nx_agraph.graphviz_layout(G, prog="dot", args="-Grankdir=LR")
+    labels = nx.get_node_attributes(G, 'label')
+    plt.figure(figsize=(19, 14))
+    nx.draw(
+        G, pos, with_labels=True, labels=labels, node_size=3000, 
+        node_color="skyblue", font_size=10, font_weight="bold", edge_color="gray"
+    )
+    plt.title("Folder Structure")
+    plt.tight_layout()
+    plt.savefig(output_path)
     plt.close()
 
 
@@ -205,7 +240,7 @@ def process_dataset(yaml_file_path, output_folder):
                     bbox_ratios[class_names[int(line.split()[0])]].append(width * height)
 
         plot_bbox_ratio_distribution(
-            bbox_ratios, os.path.join(sub_output_images_folder, "bbox_ratio_distribution.png")
+            bbox_ratios, os.path.join(sub_output_folder, "bbox_ratio_distribution.png")
         )
 
     # Plot class and image size distributions for train and val
@@ -215,6 +250,8 @@ def process_dataset(yaml_file_path, output_folder):
     plot_image_size_distribution(train_folder, os.path.join(train_output_folder, "image_size_distribution.png"))
     plot_image_size_distribution(val_folder, os.path.join(val_output_folder, "image_size_distribution.png"))
     print("#2 - plot_image_size_distribution DONE")
-    visualize_folder_structure('train', os.path.join(train_output_folder, "train_folder_structure.png")) 
-    visualize_folder_structure('val', os.path.join(val_output_folder, "val_folder_structure.png"))
+    train_folder_graph = build_folder_graph(train_folder)
+    val_folder_graph = build_folder_graph(val_folder)
+    plot_folder_graph(train_folder_graph, os.path.join(train_output_folder, "train_folder_structure.png"))
+    plot_folder_graph(val_folder_graph, os.path.join(val_output_folder, "val_folder_structure.png"))
     print("#3 - visualize_folder_structure DONE")

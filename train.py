@@ -19,11 +19,10 @@ if __name__ == '__main__':
     print(f"Dataset YAML: {dataset_yaml}")
     print(f"Output folder: {output_folder}")
 
-    # Start MLflow run
+    # Start MLflow run 
     with mlflow.start_run():
         # Train YOLO model
         model = YOLO("yolov8n.pt")
-        results = model.train(data=dataset_yaml, epochs=3, imgsz=640)
 
         # Process dataset and generate visualizations
         process_dataset(dataset_yaml, output_folder)
@@ -31,6 +30,7 @@ if __name__ == '__main__':
         # Log artifacts (visualizations)
         mlflow.log_artifacts(output_folder, artifact_path=output_folder)
         print("Visualizations generated and saved.")
+        results = model.train(data=dataset_yaml, epochs=3, imgsz=640)
 
         # Log parameters
         mlflow.log_param("dataset_yaml", dataset_yaml)
