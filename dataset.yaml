@@ -1,0 +1,12 @@
+#데이터셋 경로
+path: C:/bongkj/Dataset/SOREST/v1.5.9
+#train/val 폴더
+train: train/
+val: val/
+#클래스 번호와 클래스명
+names:
+  0: person
+  1: sitdown
+  2: falldown
+  3: fire
+  4: smoke
