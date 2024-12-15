@@ -1,6 +1,5 @@
 # MLOps_Related
-train_images/
-val_images/
+Dataset_Informations/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
